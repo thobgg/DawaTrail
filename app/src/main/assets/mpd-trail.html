@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DawaTrail</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    :root{
+      --bg:#0a0a0a;--surface:#111;--surface2:#1e1e1e;--surface3:#252525;
+      --b1:rgba(255,255,255,0.07);--b2:rgba(255,255,255,0.13);--b3:rgba(255,255,255,0.22);
+      --blue:#2E75B6;--amber:#c8922a;--amber2:#e8b84b;
+      --green:#43c98c;--red:#f05a5a;
+      --tx:#e0e0e0;--tx2:#888;--tx3:#444;
+      --r:10px;
+      --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+      --mono:'Courier New',monospace;
+      --hdr:62px;
+      --sidebar:290px;
+      --peek:86px;
+    }
+
+    *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+
+    html{height:100%;height:100dvh;}
+    body{
+      height:100%;height:100dvh;
+      overflow:hidden;
+      background:var(--bg);
+      color:var(--tx);
+      font-family:var(--font);
+    }
+
+    /* ════════════════════════════════════
+       HEADER  — spans full width always
+    ════════════════════════════════════ */
+    .hdr{
+      position:fixed;inset:0 0 auto 0;
+      height:var(--hdr);
+      z-index:200;
+      display:flex;align-items:center;gap:10px;
+      padding:0 14px;
+      padding-top:env(safe-area-inset-top);
+      background:rgba(10,10,10,0.88);
+      backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+      border-bottom:1px solid var(--b1);
+    }
+    .logo{
+      width:46px;height:46px;border-radius:10px;
+      background:transparent;border:none;
+      display:flex;align-items:center;justify-content:center;
+      overflow:hidden;flex-shrink:0;
+    }
+    .logo img{width:46px;height:46px;object-fit:contain;}
+    .htitles{flex:1;min-width:0;}
+    .htitles h1{font-size:clamp(15px,4vw,19px);font-weight:700;letter-spacing:-0.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.15;color:var(--tx);}
+    .htitles small{font-size:clamp(9px,2.5vw,11px);color:var(--amber);font-style:italic;letter-spacing:0.1px;white-space:nowrap;}
+    .spill{
+      display:flex;align-items:center;gap:5px;
+      background:var(--surface2);border:1px solid var(--b2);
+      border-radius:20px;padding:4px 10px;
+      font-size:11px;color:var(--tx2);white-space:nowrap;
+    }
+    .sdot{width:6px;height:6px;border-radius:50%;background:var(--tx3);flex-shrink:0;transition:background 0.3s;}
+    .sdot.ok{background:var(--green);}
+    .sdot.err{background:var(--red);}
+    .ibtn{
+      width:36px;height:36px;background:none;border:none;
+      color:var(--tx2);font-size:16px;cursor:pointer;
+      border-radius:8px;display:flex;align-items:center;justify-content:center;
+      transition:background 0.15s,color 0.15s;flex-shrink:0;
+    }
+    .ibtn:hover{background:var(--surface2);color:var(--tx);}
+
+    /* ════════════════════════════════════
+       MAP  — always fills remaining space
+    ════════════════════════════════════ */
+    .mapwrap{
+      position:fixed;
+      top:var(--hdr);
+      bottom:0;
+      left:0;right:0;
+      z-index:0;
+    }
+    /* z-index:0 macht #map zu einem eigenen Stacking-Context → die Leaflet-Panes
+       (Kacheln z200, Marker z600 …) bleiben INNERHALB der Karte, sodass die
+       Overlay-Geschwister (dbadge, movl, Buttons) zuverlässig darüber liegen. */
+    #map{width:100%;height:100%;position:relative;z-index:0;}
+
+    /* date badge over map */
+    .dbadge{
+      position:absolute;top:10px;left:10px;z-index:50;
+      background:rgba(10,10,10,0.9);border:1px solid var(--b2);
+      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+      border-radius:8px;padding:5px 12px;
+      font-size:13px;font-weight:600;
+      display:none;pointer-events:none;
+    }
+    .dbadge.on{display:block;}
+
+    /* action buttons over map — top-right, unter der Ebenen-Auswahl.
+       Oben platziert, damit das Bottom-Sheet (z-index 100) sie nie verdeckt. */
+    .mvbtn{
+      position:absolute;right:10px;z-index:50;
+      top:64px;
+      background:rgba(10,10,10,0.9);border:1px solid var(--b2);
+      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+      border-radius:8px;padding:7px 12px;
+      font-size:13px;font-weight:600;color:var(--tx);cursor:pointer;
+      display:flex;align-items:center;gap:5px;
+      transition:background .15s,border-color .15s,color .15s;
+    }
+    .mvbtn.on{background:var(--amber);border-color:var(--amber);color:#fff;}
+    .expbtn{top:110px;}
+
+    /* map overlay: loading / empty */
+    .moverlay{
+      position:absolute;inset:0;z-index:40;
+      background:rgba(10,10,10,0.72);
+      display:flex;flex-direction:column;
+      align-items:center;justify-content:center;gap:12px;
+    }
+    .moverlay.gone{display:none;}
+    .oico{font-size:44px;opacity:0.22;}
+    .otxt{font-size:14px;color:var(--tx2);}
+    .ospinner{width:28px;height:28px;border:3px solid var(--b2);border-top-color:var(--amber);border-radius:50%;animation:spin .7s linear infinite;}
+    @keyframes spin{to{transform:rotate(360deg);}}
+
+    /* ════════════════════════════════════
+       SHARED PANEL COMPONENTS
+    ════════════════════════════════════ */
+    /* month nav */
+    .mbar{display:flex;align-items:center;gap:6px;padding:10px 14px 6px;}
+    .mnbtn{
+      width:32px;height:32px;flex-shrink:0;
+      background:var(--surface2);border:1px solid var(--b2);border-radius:8px;
+      color:var(--tx2);font-size:16px;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;
+      transition:border-color .15s,color .15s;
+    }
+    .mnbtn:hover,.mnbtn:active{border-color:var(--amber);color:var(--tx);}
+    .mlbl{
+      flex:1;text-align:center;font-size:14px;font-weight:600;
+      cursor:pointer;padding:5px 0;border-radius:7px;transition:background .15s;
+    }
+    .mlbl:hover,.mlbl:active{background:var(--surface2);}
+    .mspinner{width:12px;height:12px;border:2px solid var(--b2);border-top-color:var(--amber);border-radius:50%;animation:spin .7s linear infinite;display:none;flex-shrink:0;}
+    .mspinner.on{display:block;}
+
+    /* stats */
+    .ibar{display:flex;padding:0 14px 10px;}
+    .stat{flex:1;text-align:center;}
+    .stat .v{font-size:16px;font-weight:700;font-family:var(--mono);color:var(--amber2);display:block;}
+    .stat .l{font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;}
+    .ssep{width:1px;background:var(--b1);margin:2px 0;}
+
+    /* calendar */
+    .calwrap{padding:4px 10px 8px;}
+    .calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+    .dhdr{text-align:center;font-size:9px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.4px;padding:2px 0 5px;}
+    .cday{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:6px;position:relative;cursor:pointer;transition:background .1s;}
+    .cday:hover,.cday:active{background:var(--surface2);}
+    .cday.oth{opacity:.15;pointer-events:none;}
+    .cday.tod{outline:1px solid var(--blue);outline-offset:-1px;}
+    .cday.tod .dn{color:#4f8ef7;font-weight:700;}
+    .cday.act{background:var(--amber);}
+    .cday.act .dn{color:#fff;font-weight:700;}
+    .cday.hd::after{content:'';width:3px;height:3px;border-radius:50%;background:var(--amber2);position:absolute;bottom:2px;}
+    .cday.act::after{background:rgba(255,255,255,.7);}
+    .cday.nd{pointer-events:none;}
+    .cday.nd .dn{text-decoration:line-through;color:var(--tx3);}
+    .dn{font-size:11px;color:var(--tx);}
+
+    /* picker */
+    .picker{overflow:hidden;max-height:0;transition:max-height .25s ease;background:var(--bg);border-top:1px solid var(--b1);}
+    .picker.open{max-height:165px;}
+    .ychips{display:flex;gap:6px;padding:8px 10px 4px;overf15659d6d34922b81b96a1228be862a01low-x:auto;scrollbar-width:none;cursor:grab;}
+    .ychips::-webkit-scrollbar{display:none;}
+    .ychip{flex-shrink:0;padding:5px 13px;border-radius:16px;background:var(--surface2);border:1px solid var(--b2);color:var(--tx2);font-size:13px;font-weight:500;cursor:pointer;}
+    .ychip.sel{background:var(--amber);border-color:var(--amber);color:#fff;}
+    .mgrid{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;padding:4px 10px 10px;}
+    .mchip{padding:6px 2px;border-radius:7px;background:var(--surface2);border:1px solid var(--b2);color:var(--tx2);font-size:12px;cursor:pointer;text-align:center;transition:border-color .1s,color .1s;}
+    .mchip:hover{border-color:var(--amber);color:var(--tx);}
+    .mchip.sel{background:var(--amber);border-color:var(--amber);color:#fff;}
+    .mchip.has{border-color:var(--amber);color:var(--amber);}
+    .mchip.sel.has{color:#fff;}
+
+    /* divider */
+    .div1{height:1px;background:var(--b1);margin:0;}
+
+    /* ════════════════════════════════════
+       DESKTOP  ≥ 680px
+       Fixed left sidebar, map fills rest
+    ════════════════════════════════════ */
+    @media(min-width:680px){
+      .sheet{display:none !important;}
+      .sidebar{
+        position:fixed;
+        top:var(--hdr);bottom:0;left:0;
+        width:var(--sidebar);
+        z-index:100;
+        background:var(--surface);
+        border-right:1px solid var(--b1);
+        display:flex;flex-direction:column;
+        overflow:hidden;
+      }
+      .mapwrap{left:var(--sidebar);}
+      .dbadge{left:10px;}
+      .sidebar-scroll{flex:1;overflow-y:auto;overflow-x:hidden;}
+      .sidebar-scroll::-webkit-scrollbar{width:4px;}
+      .sidebar-scroll::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px;}
+      .sidebar-bottom{
+        flex-shrink:0;
+        padding-bottom:max(8px,env(safe-area-inset-bottom));
+        border-top:1px solid var(--b1);
+      }
+    }
+
+    /* ════════════════════════════════════
+       MOBILE  < 680px
+       Map full screen, bottom sheet
+    ════════════════════════════════════ */
+    @media(max-width:679px){
+      .sidebar{display:none !important;}
+
+      /* snap-based sheet using scroll */
+      .sheet{
+        position:fixed;
+        left:0;right:0;bottom:0;
+        z-index:100;
+        /* three snap points via CSS scroll snap on a wrapper */
+        background:var(--surface);
+        border-radius:20px 20px 0 0;
+        border-top:1px solid var(--b2);
+        will-change:transform;
+        transition:transform .32s cubic-bezier(.32,.72,0,1);
+        /* default: peek */
+        transform:translateY(calc(100% - var(--peek) - env(safe-area-inset-bottom)));
+      }
+      .sheet.s-half{transform:translateY(calc(100% - 52dvh));}
+      .sheet.s-full{transform:translateY(calc(100% - 92dvh));}
+
+      .handle{
+        width:36px;height:4px;
+        background:var(--b3);border-radius:2px;
+        margin:10px auto 0;cursor:grab;
+        flex-shrink:0;
+      }
+
+      /* calendar area collapsible */
+      .sheet-cal{
+        overflow:hidden;
+        max-height:0;
+        transition:max-height .32s cubic-bezier(.32,.72,0,1);
+      }
+      .sheet.s-half .sheet-cal,
+      .sheet.s-full .sheet-cal{max-height:500px;}
+
+      /* picker only in full */
+      .sheet .picker{border-top:none;}
+      .sheet:not(.s-full) .picker{max-height:0 !important;}
+
+      .sheet-pad{height:env(safe-area-inset-bottom);}
+    }
+
+    /* ════════════════════════════════════
+       SETUP OVERLAY
+    ════════════════════════════════════ */
+    .soverlay{
+      position:fixed;inset:0;background:rgba(0,0,0,.78);
+      z-index:500;display:flex;align-items:center;justify-content:center;padding:20px;
+    }
+    .soverlay.gone{display:none;}
+    .scard{
+      background:var(--surface);border-radius:18px;
+      border:1px solid var(--b2);border-top:3px solid var(--amber);
+      padding:24px 20px;width:100%;max-width:380px;
+      display:flex;flex-direction:column;gap:16px;
+    }
+    .slogo{display:flex;flex-direction:column;align-items:center;gap:8px;}
+    .slogo img{width:56px;height:56px;}
+    .slogo h2{font-size:19px;font-weight:700;}
+    .slogo p{font-size:13px;color:var(--tx2);text-align:center;line-height:1.5;}
+    .fg{display:flex;flex-direction:column;gap:6px;}
+    .fg label{font-size:11px;color:var(--tx2);text-transform:uppercase;letter-spacing:.4px;font-weight:500;}
+    .fg input{
+      background:var(--bg);border:1px solid var(--b2);color:var(--tx);
+      font-size:15px;padding:11px 13px;border-radius:var(--r);outline:none;width:100%;
+    }
+    .fg input:focus{border-color:var(--blue);}
+    .cbtn{
+      background:var(--blue);color:#fff;border:none;
+      border-radius:var(--r);padding:13px;font-size:15px;font-weight:600;
+      cursor:pointer;width:100%;transition:filter .15s;
+    }
+    .cbtn:hover{filter:brightness(1.12);}
+    .shint{font-size:12px;color:var(--tx3);text-align:center;line-height:1.6;}
+
+    /* ════════════════════════════════════
+       TOAST
+    ════════════════════════════════════ */
+    .toast{
+      position:fixed;
+      bottom:calc(var(--peek) + env(safe-area-inset-bottom) + 14px);
+      left:50%;transform:translateX(-50%) translateY(10px);
+      background:var(--surface2);border:1px solid var(--b2);
+      color:var(--tx);font-size:13px;padding:8px 16px;
+      border-radius:18px;z-index:600;
+      opacity:0;transition:opacity .2s,transform .2s;
+      white-space:nowrap;pointer-events:none;
+    }
+    .toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
+    .toast.err{border-color:var(--red);color:var(--red);}
+
+    /* desktop: toast above bottom of sidebar */
+    @media(min-width:680px){
+      .toast{bottom:18px;left:calc(var(--sidebar) + 20px);}
+    }
+
+    /* ════════════════════════════════════
+       LEAFLET DARK THEME
+    ════════════════════════════════════ */
+    .leaflet-popup-content-wrapper{background:var(--surface2)!important;border:1px solid var(--b2)!important;color:var(--tx)!important;font-size:13px!important;border-radius:var(--r)!important;box-shadow:0 4px 20px rgba(0,0,0,.6)!important;}
+    .leaflet-popup-tip{background:var(--surface2)!important;}
+    .leaflet-popup-content{margin:8px 12px!important;}
+    .leaflet-control-zoom a{background:var(--surface2)!important;color:var(--tx)!important;border-color:var(--b2)!important;}
+    .leaflet-control-layers{background:var(--surface2)!important;border:1px solid var(--b2)!important;color:var(--tx)!important;font-size:13px!important;border-radius:var(--r)!important;}
+    .leaflet-control-layers label span{color:var(--tx)!important;}
+  </style>
+</head>
+<body>
+
+<!-- ─── HEADER ─── -->
+<header class="hdr">
+  <div class="logo">
+    <img src="mpd-trail-logo.svg" alt=""
+         onerror="this.parentElement.innerHTML='<span style=font-size:26px>&#x1F5FA;</span>'">
+  </div>
+  <div class="htitles">
+    <h1>DawaTrail</h1>
+    <small>da war ich.</small>
+  </div>
+  <div class="spill">
+    <div class="sdot" id="sdot"></div>
+    <span id="stxt">&#x2013;</span>
+  </div>
+  <button class="ibtn" onclick="openSetup()" title="Einstellungen">&#x2699;&#xFE0F;</button>
+</header>
+
+<!-- ─── MAP ─── -->
+<div class="mapwrap">
+  <div id="map"></div>
+  <div class="dbadge" id="dbadge"></div>
+  <button class="mvbtn expbtn" id="expbtn" onclick="exportGpx()" title="Als GPX teilen">&#x2913; GPX</button>
+  <button class="mvbtn" id="mvbtn" onclick="toggleMonthView()">&#x25F1; Monat</button>
+  <div id="movl" class="moverlay">
+    <div class="oico">&#x1F5FA;&#xFE0F;</div>
+    <div class="otxt">Tag ausw&#xE4;hlen</div>
+  </div>
+</div>
+
+<!-- ─── DESKTOP SIDEBAR ─── -->
+<aside class="sidebar">
+  <div class="mbar">
+    <button class="mnbtn" onclick="changeMonth(-1)">&#x2039;</button>
+    <span class="mlbl" id="mlbl-d" onclick="togglePicker('d')">&#x2013;</span>
+    <div class="mspinner" id="mspinner-d"></div>
+    <button class="mnbtn" onclick="changeMonth(1)">&#x203a;</button>
+  </div>
+  <div class="picker" id="picker-d">
+    <div class="ychips" id="ychips-d"></div>
+    <div class="mgrid"  id="mgrid-d"></div>
+  </div>
+  <div class="div1"></div>
+  <div class="sidebar-scroll">
+    <div class="calwrap">
+      <div class="calgrid" id="calgrid-d">
+        <div class="dhdr">Mo</div><div class="dhdr">Di</div><div class="dhdr">Mi</div>
+        <div class="dhdr">Do</div><div class="dhdr">Fr</div>
+        <div class="dhdr">Sa</div><div class="dhdr">So</div>
+      </div>
+    </div>
+  </div>
+  <div class="sidebar-bottom">
+    <div class="div1" style="margin-bottom:8px;"></div>
+    <div class="ibar">
+      <div class="stat"><span class="v" id="sKm-d">&#x2013;</span><span class="l">km</span></div>
+      <div class="ssep"></div>
+      <div class="stat"><span class="v" id="sDur-d">&#x2013;</span><span class="l">Zeit</span></div>
+      <div class="ssep"></div>
+      <div class="stat"><span class="v" id="sPts-d">&#x2013;</span><span class="l">Punkte</span></div>
+    </div>
+  </div>
+</aside>
+
+<!-- ─── MOBILE SHEET ─── -->
+<div class="sheet" id="sheet">
+  <div class="handle" id="handle"></div>
+
+  <!-- always visible: month + stats -->
+  <div class="mbar">
+    <button class="mnbtn" onclick="changeMonth(-1)">&#x2039;</button>
+    <span class="mlbl" id="mlbl-m" onclick="sheetFull();togglePicker('m')">&#x2013;</span>
+    <div class="mspinner" id="mspinner-m"></div>
+    <button class="mnbtn" onclick="changeMonth(1)">&#x203a;</button>
+  </div>
+  <div class="ibar">
+    <div class="stat"><span class="v" id="sKm-m">&#x2013;</span><span class="l">km</span></div>
+    <div class="ssep"></div>
+    <div class="stat"><span class="v" id="sDur-m">&#x2013;</span><span class="l">Zeit</span></div>
+    <div class="ssep"></div>
+    <div class="stat"><span class="v" id="sPts-m">&#x2013;</span><span class="l">Punkte</span></div>
+  </div>
+
+  <!-- half + full: calendar -->
+  <div class="sheet-cal">
+    <div class="div1"></div>
+    <div class="picker" id="picker-m">
+      <div class="ychips" id="ychips-m"></div>
+      <div class="mgrid"  id="mgrid-m"></div>
+    </div>
+    <div class="calwrap">
+      <div class="calgrid" id="calgrid-m">
+        <div class="dhdr">Mo</div><div class="dhdr">Di</div><div class="dhdr">Mi</div>
+        <div class="dhdr">Do</div><div class="dhdr">Fr</div>
+        <div class="dhdr">Sa</div><div class="dhdr">So</div>
+      </div>
+    </div>
+  </div>
+  <div class="sheet-pad"></div>
+</div>
+
+<!-- ─── SETUP ─── -->
+<div class="soverlay gone" id="soverlay" onclick="if(event.target===this)closeSetup()">
+  <div class="scard">
+    <div class="slogo">
+      <img src="mpd-trail-logo.svg" alt=""
+           onerror="this.outerHTML='<div style=font-size:48px>&#x1F5FA;</div>'">
+      <h2>DawaTrail</h2>
+      <p>Inoffizieller Viewer f&uuml;r Dawarich &mdash; Kalender mit Karte.<br>
+         Nicht mit dem Dawarich-Projekt affiliiert.</p>
+    </div>
+    <div class="fg">
+      <label>Dawarich URL</label>
+      <input type="url" id="cfgUrl" placeholder="https://dawarich.deinedomain.de"
+             autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
+    </div>
+    <div class="fg">
+      <label>API Key</label>
+      <input type="text" id="cfgKey" placeholder="API Key"
+             autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
+    </div>
+    <button class="cbtn" id="cbtn" onclick="connect()">Verbinden</button>
+    <p class="shint">Lokal gespeichert &mdash; kein Account, kein Login.</p>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const KEY = 'mpd_trail_v3';
+  const MN  = ['Jan','Feb','M\u00e4r','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+  const CY  = new Date().getFullYear();
+
+  const S = {
+    url:'', key:'', ok:false,
+    y:CY, m:new Date().getMonth(),
+    sel:null, days:{},
+    pickerY:CY,
+    pickerOpen:{d:false, m:false},
+    monthView:false
+  };
+
+  let map=null, ac=null;
+  let curRoute=null;   // aktuell angezeigte Route für den GPX-Export: {kind:'day'|'month', …}
+
+  /* ─── SHEET STATE ─── */
+  let sheetState = 'peek'; // peek | half | full
+
+  function sheetSet(st) {
+    sheetState = st;
+    const el = document.getElementById('sheet');
+    el.classList.remove('s-half','s-full');
+    if (st==='half') el.classList.add('s-half');
+    if (st==='full') el.classList.add('s-full');
+    setTimeout(()=>{ if(map) map.invalidateSize(); }, 340);
+  }
+  const sheetPeek = ()=>{ sheetSet('peek'); closePicker('m'); };
+  const sheetHalf = ()=>sheetSet('half');
+  const sheetFull = ()=>sheetSet('full');
+
+  /* drag handle */
+  (()=>{
+    let y0=0, t0=0, active=false;
+    const handle = ()=>document.getElementById('handle');
+
+    const start = e=>{
+      y0 = e.touches ? e.touches[0].clientY : e.clientY;
+      t0 = Date.now();
+      active = true;
+      document.getElementById('sheet').style.transition='none';
+    };
+    const end = e=>{
+      if(!active) return;
+      active = false;
+      document.getElementById('sheet').style.transition='';
+      const y1 = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+      const dy = y1 - y0, dt = Date.now()-t0, v = Math.abs(dy)/Math.max(dt,1);
+      if      (dy < -24 || v > .45) { if(sheetState==='peek') sheetHalf(); else sheetFull(); }
+      else if (dy >  24 || v > .45) { if(sheetState==='full') sheetHalf(); else sheetPeek(); }
+    };
+
+    window.addEventListener('load', ()=>{
+      handle().addEventListener('touchstart', start, {passive:true});
+      handle().addEventListener('mousedown',  start);
+      window.addEventListener('touchend', end, {passive:true});
+      window.addEventListener('mouseup',  end);
+    });
+  })();
+
+  /* tap on map collapses sheet */
+  window.addEventListener('load', ()=>{
+    document.getElementById('map').addEventListener('click', ()=>{
+      if(sheetState !== 'peek') sheetPeek();
+    });
+  });
+
+  /* ─── INIT ─── */
+  window.addEventListener('load', ()=>{
+    const c = JSON.parse(localStorage.getItem(KEY)||'{}');
+    if(c.url)  document.getElementById('cfgUrl').value = c.url;
+    if(c.key)  document.getElementById('cfgKey').value = c.key;
+    if(c.days) S.days = c.days;
+
+    initMap();
+    buildPicker('d'); buildPicker('m');
+    updateLabel();
+    renderCal('d'); renderCal('m');
+
+    if(c.url && c.key){ S.url=c.url; S.key=c.key; connect(true); }
+    else openSetup();
+  });
+
+  /* ─── MAP ─── */
+  function initMap(){
+    map = L.map('map',{zoomControl:true,preferCanvas:true}).setView([51.5,10],6);
+
+    // Alle Ebenen keyless — kein API-Key, kein Fremd-Account nötig.
+    const topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+      attribution: '\u00a9 OpenTopoMap (CC-BY-SA) \u00a9 OpenStreetMap', maxZoom: 17
+    });
+    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '\u00a9 OpenStreetMap', maxZoom: 19
+    });
+    const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: '\u00a9 Esri, Maxar, Earthstar Geographics', maxZoom: 19
+    });
+    const dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '\u00a9 OpenStreetMap \u00a9 CartoDB', maxZoom: 19
+    });
+
+    topo.addTo(map);   // Topo/Wanderwege als Standard (Trail-App)
+
+    L.control.layers({
+      "Topo": topo,
+      "OpenStreetMap": osm,
+      "Satellit": sat,
+      "Dark Mode": dark
+    }, {}, {position:'topright', collapsed:true}).addTo(map);
+  }
+
+  /* ─── SETUP ─── */
+  function openSetup(){ document.getElementById('soverlay').classList.remove('gone'); }
+  function closeSetup(){ document.getElementById('soverlay').classList.add('gone'); }
+
+  async function connect(silent){
+    if(!silent){
+      S.url = document.getElementById('cfgUrl').value.trim().replace(/\/+$/,'');
+      S.key = document.getElementById('cfgKey').value.trim();
+    }
+    if(!S.url||!S.key){ toast('URL und Key erforderlich',1); return; }
+    const btn=document.getElementById('cbtn');
+    if(btn){ btn.textContent='Verbinde\u2026'; btn.disabled=true; }
+    try{
+      const r = await fetch(S.url+'/api/v1/health?api_key='+S.key);
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      S.ok=true; setStat(true); save(); closeSetup();
+      if(!silent) toast('\u2713 Verbunden');
+      loadMonth();
+    }catch(e){
+      setStat(false); toast('Fehler: '+e.message,1);
+    }finally{
+      if(btn){ btn.textContent='Verbinden'; btn.disabled=false; }
+    }
+  }
+  function setStat(ok){
+    S.ok=ok;
+    document.getElementById('sdot').className='sdot '+(ok?'ok':'err');
+    document.getElementById('stxt').textContent=ok?'Verbunden':'Fehler';
+  }
+
+  /* ─── PICKER ─── */
+  function buildPicker(ctx){
+    const yc=document.getElementById('ychips-'+ctx);
+    yc.innerHTML='';
+    for(let y=CY;y>=2010;y--){
+      const el=document.createElement('span');
+      el.className='ychip'+(y===S.pickerY?' sel':'');
+      el.textContent=y;
+      el.onclick=()=>pickerYear(y,ctx);
+      yc.appendChild(el);
+    }
+    buildMGrid(ctx);
+  }
+  function pickerYear(y,ctx){
+    S.pickerY=y;
+    ['d','m'].forEach(c=>{
+      document.querySelectorAll('#ychips-'+c+' .ychip')
+        .forEach(ch=>ch.classList.toggle('sel',+ch.textContent===y));
+    });
+    buildMGrid(ctx);
+  }
+  function buildMGrid(ctx){
+    const mg=document.getElementById('mgrid-'+ctx);
+    mg.innerHTML='';
+    MN.forEach((n,i)=>{
+      const ds=S.pickerY+'-'+pad(i+1);
+      const has=Object.keys(S.days).some(k=>k.startsWith(ds)&&S.days[k]);
+      const sel=(S.pickerY===S.y&&i===S.m);
+      const el=document.createElement('span');
+      el.className='mchip'+(sel?' sel':'')+(has?' has':'');
+      el.textContent=n;
+      el.onclick=()=>applyPicker(S.pickerY,i);
+      mg.appendChild(el);
+    });
+  }
+  function togglePicker(ctx){
+    const was=S.pickerOpen[ctx];
+    closePicker('d'); closePicker('m');
+    if(!was){
+      S.pickerOpen[ctx]=true; S.pickerY=S.y;
+      document.getElementById('picker-'+ctx).classList.add('open');
+      buildPicker(ctx);
+      const sel=document.querySelector('#ychips-'+ctx+' .ychip.sel');
+      if(sel) setTimeout(()=>sel.scrollIntoView({inline:'center',behavior:'smooth'}),60);
+    }
+  }
+  function closePicker(ctx){
+    if(ctx){ S.pickerOpen[ctx]=false; document.getElementById('picker-'+ctx).classList.remove('open'); }
+    else { closePicker('d'); closePicker('m'); }
+  }
+  function applyPicker(y,m){
+    S.y=y; S.m=m; S.sel=null;
+    closePicker('d'); closePicker('m');
+    updateLabel(); renderCal('d'); renderCal('m'); resetStats();
+    if(S.ok) loadMonth();
+  }
+
+  /* ─── MONTH ─── */
+  function updateLabel(){
+    const t=new Date(S.y,S.m,1).toLocaleDateString('de-DE',{month:'long',year:'numeric'});
+    document.getElementById('mlbl-d').textContent=t;
+    document.getElementById('mlbl-m').textContent=t;
+  }
+  function changeMonth(d){
+    closePicker('d'); closePicker('m');
+    S.m+=d;
+    if(S.m<0){S.m=11;S.y--;} if(S.m>11){S.m=0;S.y++;}
+    S.sel=null; updateLabel(); renderCal('d'); renderCal('m'); resetStats();
+    if(S.ok) loadMonth();
+  }
+
+  async function loadMonth(){
+    if(!S.ok) return;
+    if(ac) ac.abort();
+    ac=new AbortController();
+    const sig=ac.signal, y=S.y, m=S.m;
+    const dim=new Date(y,m+1,0).getDate();
+    const mv=S.monthView;   // Monatsansicht: wir brauchen ALLE Punkte (keine Früh-Abbrüche)
+    if(mv) showOvl(true);
+    ['d','m'].forEach(c=>document.getElementById('mspinner-'+c).classList.add('on'));
+
+    // Ganzen Monat in EINEM (paginierten) Request holen statt 31 Einzelabfragen.
+    // Kalender-Modus: nur "hat dieser Tag Punkte?" → Zeitstempel nach Tag bucketen.
+    // Monatsansicht: zusätzlich die Koordinaten pro Tag sammeln, um alle Tracks zu zeichnen.
+    const startTs=Math.floor(new Date(y,m,1,0,0,0).getTime()/1000);
+    const endTs  =Math.floor(new Date(y,m,dim,23,59,59).getTime()/1000);
+    const seen=new Set();
+    const byDay=mv?{}:null;
+    let ok=false;
+    try{
+      const per=1000;
+      for(let page=1;;page++){
+        if(sig.aborted) return;
+        const pts=await apiRange(startTs,endTs,per,page,sig);
+        for(const p of pts){
+          const t=+p.timestamp;
+          const ds=fd(new Date(t*1000));
+          if(!seen.has(ds)){ seen.add(ds); S.days[ds]=true; }
+          if(mv){ (byDay[ds]||(byDay[ds]=[])).push({la:+p.latitude,ln:+p.longitude,t}); }
+        }
+        renderCal('d'); renderCal('m');
+        if(S.pickerOpen.d) buildMGrid('d');
+        if(S.pickerOpen.m) buildMGrid('m');
+        if(!mv && seen.size>=dim) break;  // Kalender-Modus: alle Tage markiert → fertig
+        if(pts.length<per) break;         // letzte Seite erreicht
+      }
+      ok=true;
+    }catch(e){
+      if(!sig.aborted) toast('Monat: '+e.message,1);
+    }
+    if(sig.aborted) return;
+    // Vollständiger Durchlauf ohne Fehler → nicht gesehene Tage sind gesichert leer.
+    if(ok){
+      for(let d=1;d<=dim;d++){
+        const ds=y+'-'+pad(m+1)+'-'+pad(d);
+        if(!seen.has(ds)) S.days[ds]=false;
+      }
+      renderCal('d'); renderCal('m');
+      if(S.pickerOpen.d) buildMGrid('d');
+      if(S.pickerOpen.m) buildMGrid('m');
+      save();
+    }
+    ['d','m'].forEach(c=>document.getElementById('mspinner-'+c).classList.remove('on'));
+    if(mv && S.monthView){
+      if(ok) drawMonth(byDay);
+      else{
+        const o=document.getElementById('movl');
+        o.classList.remove('gone');
+        o.innerHTML='<div class="oico">⚠️</div><div class="otxt">Monat konnte nicht geladen werden</div>';
+      }
+    }
+  }
+
+  /* ─── CALENDAR ─── */
+  function renderCal(ctx){
+    const g=document.getElementById('calgrid-'+ctx);
+    while(g.children.length>7) g.removeChild(g.lastChild);
+    const today=fd(new Date());
+    const fd1=(new Date(S.y,S.m,1).getDay()+6)%7;
+    const dim=new Date(S.y,S.m+1,0).getDate();
+    const prev=new Date(S.y,S.m,0).getDate();
+    const cells=[];
+    for(let i=fd1-1;i>=0;i--) cells.push({d:prev-i,oth:true});
+    for(let d=1;d<=dim;d++){
+      const ds=S.y+'-'+pad(S.m+1)+'-'+pad(d);
+      cells.push({d,ds,k:S.days[ds]});
+    }
+    const tr=(7-(cells.length%7))%7;
+    for(let d=1;d<=tr;d++) cells.push({d,oth:true});
+    cells.forEach(c=>{
+      const el=document.createElement('div');
+      el.className='cday';
+      if(c.oth){ el.classList.add('oth'); }
+      else{
+        if(c.ds===today) el.classList.add('tod');
+        if(c.ds===S.sel) el.classList.add('act');
+        if(c.k===true)   el.classList.add('hd');
+        if(c.k===false)  el.classList.add('nd');
+        if(c.k!==false)  el.onclick=()=>selDay(c.ds);
+      }
+      el.innerHTML='<span class="dn">'+c.d+'</span>';
+      g.appendChild(el);
+    });
+  }
+
+  /* ─── SELECT DAY ─── */
+  async function selDay(ds){
+    if(!S.ok) return;
+    if(S.monthView){ S.monthView=false; document.getElementById('mvbtn').classList.remove('on'); }
+    S.sel=ds; renderCal('d'); renderCal('m');
+    closePicker('d'); closePicker('m');
+    sheetPeek(); // mobile: collapse to see map
+    showOvl(true); clearMap(); resetStats();
+    const badge=document.getElementById('dbadge');
+    badge.textContent=new Date(ds+'T12:00:00')
+      .toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'short'});
+    badge.classList.remove('on');
+    try{
+      const pts=await api(ds);
+      showOvl(false);
+      if(!pts.length){
+        S.days[ds]=false; save(); renderCal('d'); renderCal('m');
+        const o=document.getElementById('movl');
+        o.classList.remove('gone');
+        o.innerHTML='<div class="oico" style="opacity:.2">\uD83D\uDECC</div><div class="otxt">Kein Track f\u00fcr diesen Tag</div>';
+        toast('Keine Daten'); return;
+      }
+      S.days[ds]=true; save(); renderCal('d'); renderCal('m');
+      drawRoute(pts); updStats(pts); badge.classList.add('on');
+    }catch(e){ showOvl(false); toast('Fehler: '+e.message,1); }
+  }
+
+  /* ─── API ─── */
+  async function api(ds,pp,sig){
+    const p=pp||2000;
+    const s=Math.floor(new Date(ds+'T00:00:00').getTime()/1000);
+    const e=Math.floor(new Date(ds+'T23:59:59').getTime()/1000);
+    const u=S.url+'/api/v1/points?'+
+      new URLSearchParams({start_at:s,end_at:e,api_key:S.key,order:'asc',slim:'true',per_page:p});
+    const r=await fetch(u,sig?{signal:sig}:{});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    return r.json();
+  }
+  // Punkte über einen frei wählbaren Zeitraum, seitenweise (für Monats-Übersicht).
+  async function apiRange(startTs,endTs,per,page,sig){
+    const u=S.url+'/api/v1/points?'+
+      new URLSearchParams({start_at:startTs,end_at:endTs,api_key:S.key,order:'asc',slim:'true',per_page:per,page});
+    const r=await fetch(u,sig?{signal:sig}:{});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    return r.json();
+  }
+
+  /* ─── MAP HELPERS ─── */
+  function drawRoute(pts){
+    curRoute={kind:'day', ds:S.sel,
+      pts:pts.map(p=>({la:+p.latitude,ln:+p.longitude,t:+p.timestamp}))};
+    const ll=pts.map(p=>[parseFloat(p.latitude),parseFloat(p.longitude)]);
+    const poly=L.polyline(ll,{color:'#c8922a',weight:3.5,opacity:.9}).addTo(map);
+    const dot=c=>L.divIcon({
+      html:'<div style="width:13px;height:13px;border-radius:50%;background:'+c+';border:2.5px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.6)"></div>',
+      className:'',iconAnchor:[6,6]
+    });
+    L.marker(ll[0],{icon:dot('#43c98c')})
+      .bindPopup('<b>Start</b> \u00b7 '+ft(pts[0].timestamp)).addTo(map);
+    L.marker(ll[ll.length-1],{icon:dot('#f05a5a')})
+      .bindPopup('<b>Ende</b> \u00b7 '+ft(pts[pts.length-1].timestamp)).addTo(map);
+    map.fitBounds(poly.getBounds(),{padding:[50,30]});
+  }
+  function clearMap(){
+    curRoute=null;
+    if(!map) return;
+    map.eachLayer(l=>{
+      if(l instanceof L.Marker||l instanceof L.Polyline)
+        try{map.removeLayer(l);}catch(_){}
+    });
+  }
+  function showOvl(show){
+    const o=document.getElementById('movl');
+    if(show){ o.classList.remove('gone'); o.innerHTML='<div class="ospinner"></div><div class="otxt">Lade\u2026</div>'; }
+    else o.classList.add('gone');
+  }
+
+  /* \u2500\u2500\u2500 MONTH VIEW (alle Tage \u00fcberlagert) \u2500\u2500\u2500 */
+  function segmentize(pts){
+    // Punkte eines Tages in Segmente teilen, wenn zeitliche L\u00fccke > 20 min
+    const GAP=1200, segs=[]; let cur=[];
+    for(const p of pts){
+      if(cur.length && (p.t-cur[cur.length-1].t)>GAP){ segs.push(cur); cur=[]; }
+      cur.push(p);
+    }
+    if(cur.length) segs.push(cur);
+    return segs;
+  }
+  function monthColor(i,n){
+    const f=n>1?i/(n-1):0;          // 0 = fr\u00fch im Monat \u2026 1 = sp\u00e4t
+    const hue=210-170*f;            // blau (k\u00fchl) \u2192 amber (warm)
+    return 'hsl('+hue.toFixed(0)+',70%,55%)';
+  }
+  function drawMonth(byDay){
+    clearMap();
+    const dates=Object.keys(byDay).sort();
+    const o=document.getElementById('movl');
+    const badge=document.getElementById('dbadge');
+    if(!dates.length){
+      o.classList.remove('gone');
+      o.innerHTML='<div class="oico">\ud83d\uddfa\ufe0f</div><div class="otxt">Kein Track in diesem Monat</div>';
+      resetStats(); badge.classList.remove('on'); return;
+    }
+    o.classList.add('gone');
+    curRoute={kind:'month', byDay};
+    let totKm=0, totPts=0, totSec=0; const bounds=[];
+    dates.forEach((ds,i)=>{
+      const pts=byDay[ds], col=monthColor(i,dates.length);
+      segmentize(pts).forEach(seg=>{
+        if(seg.length<2) return;
+        const poly=L.polyline(seg.map(p=>[p.la,p.ln]),{color:col,weight:3,opacity:.85}).addTo(map);
+        bounds.push(poly.getBounds());
+      });
+      for(let j=1;j<pts.length;j++) totKm+=hav(pts[j-1].la,pts[j-1].ln,pts[j].la,pts[j].ln);
+      totPts+=pts.length; totSec+=(pts[pts.length-1].t-pts[0].t);
+    });
+    if(bounds.length){
+      let b=bounds[0]; for(let i=1;i<bounds.length;i++) b=b.extend(bounds[i]);
+      map.fitBounds(b,{padding:[50,30]});
+    }
+    setStats(totKm.toFixed(1), durS(totSec), totPts);
+    badge.textContent=new Date(S.y,S.m,1).toLocaleDateString('de-DE',{month:'long',year:'numeric'})+' \u00b7 '+dates.length+' Tage';
+    badge.classList.add('on');
+  }
+  function toggleMonthView(){
+    if(!S.ok){ toast('Erst verbinden',1); return; }
+    S.monthView=!S.monthView;
+    document.getElementById('mvbtn').classList.toggle('on',S.monthView);
+    if(S.monthView){
+      S.sel=null; renderCal('d'); renderCal('m');
+      closePicker(); sheetPeek();
+      loadMonth();   // zieht die Monatsdaten und zeichnet alle Tracks
+    }else{
+      clearMap();
+      document.getElementById('dbadge').classList.remove('on');
+      resetStats();
+      const o=document.getElementById('movl');
+      o.classList.remove('gone');
+      o.innerHTML='<div class="oico">\ud83d\uddfa\ufe0f</div><div class="otxt">Tag ausw\u00e4hlen</div>';
+    }
+  }
+
+  /* \u2500\u2500\u2500 GPX EXPORT \u2500\u2500\u2500 */
+  function gpxEsc(s){ return String(s).replace(/[<&>]/g,c=>({'<':'&lt;','&':'&amp;','>':'&gt;'}[c])); }
+  function gpxIso(t){ return new Date(t*1000).toISOString(); }
+  function gpxDoc(name,trks){
+    let x='<?xml version="1.0" encoding="UTF-8"?>\n'+
+      '<gpx version="1.1" creator="DawaTrail" xmlns="http://www.topografix.com/GPX/1/1">\n'+
+      '<metadata><name>'+gpxEsc(name)+'</name></metadata>\n';
+    for(const tr of trks){
+      x+='<trk><name>'+gpxEsc(tr.name)+'</name>\n';
+      for(const seg of tr.segs){
+        if(!seg||seg.length<1) continue;
+        x+='<trkseg>\n';
+        for(const p of seg)
+          x+='<trkpt lat="'+p.la.toFixed(6)+'" lon="'+p.ln.toFixed(6)+'"><time>'+gpxIso(p.t)+'</time></trkpt>\n';
+        x+='</trkseg>\n';
+      }
+      x+='</trk>\n';
+    }
+    return x+'</gpx>\n';
+  }
+  function buildGpx(){
+    if(curRoute && curRoute.kind==='day' && curRoute.pts.length){
+      return {name:'dawatrail-'+curRoute.ds+'.gpx',
+        xml:gpxDoc('DawaTrail '+curRoute.ds,[{name:curRoute.ds, segs:segmentize(curRoute.pts)}])};
+    }
+    if(curRoute && curRoute.kind==='month'){
+      const dates=Object.keys(curRoute.byDay).sort();
+      if(!dates.length) return null;
+      const mlabel=S.y+'-'+pad(S.m+1);
+      return {name:'dawatrail-'+mlabel+'.gpx',
+        xml:gpxDoc('DawaTrail '+mlabel, dates.map(ds=>({name:ds, segs:segmentize(curRoute.byDay[ds])})))};
+    }
+    return null;
+  }
+  function exportGpx(){
+    const g=buildGpx();
+    if(!g){ toast('Zuerst einen Tag oder Monat anzeigen',1); return; }
+    if(window.AndroidShare && AndroidShare.shareGpx){
+      try{ AndroidShare.shareGpx(g.name,g.xml); }
+      catch(e){ toast('Export fehlgeschlagen: '+e.message,1); }
+    }else{
+      // Browser-Fallback (Tests au\u00dferhalb der App): Download via Blob
+      const blob=new Blob([g.xml],{type:'application/gpx+xml'});
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob); a.download=g.name; a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+    }
+  }
+
+  /* ─── STATS ─── */
+  function updStats(pts){
+    const km=dist(pts).toFixed(1);
+    const dur=durS(pts[pts.length-1].timestamp-pts[0].timestamp);
+    const count=pts.length;
+    setStats(km,dur,count);
+  }
+  function resetStats(){ setStats('\u2013','\u2013','\u2013'); }
+  function setStats(km,dur,pts){
+    document.getElementById('sKm-d').textContent=km;
+    document.getElementById('sDur-d').textContent=dur;
+    document.getElementById('sPts-d').textContent=pts;
+    document.getElementById('sKm-m').textContent=km;
+    document.getElementById('sDur-m').textContent=dur;
+    document.getElementById('sPts-m').textContent=pts;
+  }
+
+  /* ─── HELPERS ─── */
+  function save(){ localStorage.setItem(KEY,JSON.stringify({url:S.url,key:S.key,days:S.days})); }
+  function dist(pts){
+    let k=0;
+    for(let i=1;i<pts.length;i++)
+      k+=hav(+pts[i-1].latitude,+pts[i-1].longitude,+pts[i].latitude,+pts[i].longitude);
+    return k;
+  }
+  function hav(a,b,c,d){
+    const R=6371,dL=(c-a)*Math.PI/180,dl=(d-b)*Math.PI/180;
+    const x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dl/2)**2;
+    return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+  }
+  function ft(ts){ return new Date(ts*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}); }
+  function durS(s){ const h=Math.floor(s/3600),m=Math.floor((s%3600)/60); return h>0?h+'h'+m+'m':m+'m'; }
+  function fd(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+  function pad(n){ return String(n).padStart(2,'0'); }
+  let _tt;
+  function toast(msg,err){
+    const t=document.getElementById('toast');
+    t.textContent=msg; t.className='toast on'+(err?' err':'');
+    clearTimeout(_tt); _tt=setTimeout(()=>t.classList.remove('on'),3000);
+  }
+
+  /* ─── DRAG-SCROLL FOR YEAR CHIPS (desktop) ─── */
+  (()=>{
+    function enableDragScroll(el){
+      let down=false, startX=0, scrollX=0;
+      el.addEventListener('mousedown', e=>{
+        down=true; startX=e.pageX; scrollX=el.scrollLeft;
+        el.style.cursor='grabbing'; el.style.userSelect='none';
+      });
+      window.addEventListener('mousemove', e=>{
+        if(!down) return;
+        el.scrollLeft=scrollX-(e.pageX-startX);
+      });
+      window.addEventListener('mouseup', ()=>{
+        down=false; el.style.cursor=''; el.style.userSelect='';
+      });
+      el.addEventListener('wheel', e=>{
+        e.preventDefault();
+        el.scrollLeft+=e.deltaY||e.deltaX;
+      },{passive:false});
+    }
+    window.addEventListener('load',()=>{
+      ['ychips-d','ychips-m'].forEach(id=>{
+        const el=document.getElementById(id);
+        if(el) enableDragScroll(el);
+      });
+    });
+  })();
+
+  /* ─── ANDROID BACK ─── */
+  window.AndroidBridge={
+    onBackPressed:()=>{
+      if(S.pickerOpen.d||S.pickerOpen.m){ closePicker('d'); closePicker('m'); return true; }
+      if(sheetState==='full'){ sheetHalf(); return true; }
+      if(sheetState==='half'){ sheetPeek(); return true; }
+      const so=document.getElementById('soverlay');
+      if(!so.classList.contains('gone')){ closeSetup(); return true; }
+      openSetup(); return true;
+    }
+  };
+</script>
+</body>
+</html>
