@@ -16,7 +16,7 @@
       --r:10px;
       --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
       --mono:'Courier New',monospace;
-      --hdr:62px;
+      --hdr:56px;
       --sidebar:290px;
       --peek:86px;
     }
@@ -162,13 +162,13 @@
     .ssep{width:1px;background:var(--b1);margin:2px 0;}
 
     /* calendar */
-    .calwrap{padding:4px 10px 8px;}
+    .calwrap{padding:10px 12px 12px;margin:4px 12px 12px;background:var(--surface2);border:1px solid var(--b1);border-radius:18px;}
     .calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
     .dhdr{text-align:center;font-size:9px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.4px;padding:2px 0 5px;}
-    .cday{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:6px;position:relative;cursor:pointer;transition:background .1s;}
+    .cday{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:50%;position:relative;cursor:pointer;transition:background .12s,box-shadow .12s;}
     .cday:hover,.cday:active{background:var(--surface2);}
     .cday.oth{opacity:.15;pointer-events:none;}
-    .cday.tod{outline:1px solid var(--blue);outline-offset:-1px;}
+    .cday.tod{box-shadow:inset 0 0 0 1.5px var(--blue);}
     .cday.tod .dn{color:#4f8ef7;font-weight:700;}
     .cday.act{background:var(--amber);}
     .cday.act .dn{color:#fff;font-weight:700;}
@@ -176,12 +176,12 @@
     .cday.act::after{background:rgba(255,255,255,.7);}
     .cday.nd{pointer-events:none;}
     .cday.nd .dn{text-decoration:line-through;color:var(--tx3);}
-    .dn{font-size:11px;color:var(--tx);}
+    .dn{font-size:12px;font-weight:500;color:var(--tx);}
 
     /* picker */
     .picker{overflow:hidden;max-height:0;transition:max-height .25s ease;background:var(--bg);border-top:1px solid var(--b1);}
     .picker.open{max-height:165px;}
-    .ychips{display:flex;gap:6px;padding:8px 10px 4px;overf15659d6d34922b81b96a1228be862a01low-x:auto;scrollbar-width:none;cursor:grab;}
+    .ychips{display:flex;gap:6px;padding:8px 10px 4px;overflow-x:auto;touch-action:pan-x;-webkit-overflow-scrolling:touch;scrollbar-width:none;cursor:grab;}
     .ychips::-webkit-scrollbar{display:none;}
     .ychip{flex-shrink:0;padding:5px 13px;border-radius:16px;background:var(--surface2);border:1px solid var(--b2);color:var(--tx2);font-size:13px;font-weight:500;cursor:pointer;}
     .ychip.sel{background:var(--amber);border-color:var(--amber);color:#fff;}
@@ -237,7 +237,7 @@
         z-index:100;
         /* three snap points via CSS scroll snap on a wrapper */
         background:var(--surface);
-        border-radius:20px 20px 0 0;
+        border-radius:24px 24px 0 0;
         border-top:1px solid var(--b2);
         will-change:transform;
         transition:transform .32s cubic-bezier(.32,.72,0,1);
@@ -248,10 +248,10 @@
       .sheet.s-full{transform:translateY(calc(100% - 92dvh));}
 
       .handle{
-        width:36px;height:4px;
-        background:var(--b3);border-radius:2px;
-        margin:10px auto 0;cursor:grab;
-        flex-shrink:0;
+        width:46px;height:5px;box-sizing:content-box;
+        padding:11px 24px;margin:0 auto;
+        background:var(--b3);background-clip:content-box;
+        border-radius:3px;cursor:grab;flex-shrink:0;
       }
 
       /* calendar area collapsible */
@@ -516,8 +516,14 @@
       document.getElementById('sheet').style.transition='';
       const y1 = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
       const dy = y1 - y0, dt = Date.now()-t0, v = Math.abs(dy)/Math.max(dt,1);
-      if      (dy < -24 || v > .45) { if(sheetState==='peek') sheetHalf(); else sheetFull(); }
-      else if (dy >  24 || v > .45) { if(sheetState==='full') sheetHalf(); else sheetPeek(); }
+      if (Math.abs(dy) < 10 && dt < 250) {   // Tap → nächste Stufe: peek→half→full→peek
+        if(sheetState==='peek') sheetHalf();
+        else if(sheetState==='half') sheetFull();
+        else sheetPeek();
+        return;
+      }
+      if      (dy < -24) { if(sheetState==='peek') sheetHalf(); else sheetFull(); }
+      else if (dy >  24) { if(sheetState==='full') sheetHalf(); else sheetPeek(); }
     };
 
     window.addEventListener('load', ()=>{
