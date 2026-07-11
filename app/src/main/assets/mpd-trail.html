@@ -113,6 +113,12 @@
     }
     .mvbtn.on{background:var(--amber);border-color:var(--amber);color:#fff;}
     .expbtn{top:110px;}
+    .lyrbtn{top:10px;}
+    .lyrmenu{position:absolute;top:10px;right:118px;z-index:50;background:rgba(10,10,10,0.92);border:1px solid var(--b2);border-radius:8px;padding:4px;display:none;flex-direction:column;gap:2px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+    .lyrmenu.on{display:flex;}
+    .lyritem{padding:8px 12px;border-radius:6px;font-size:13px;color:var(--tx);white-space:nowrap;cursor:pointer;}
+    .lyritem:hover,.lyritem:active{background:var(--surface2);}
+    .lyritem.sel{background:var(--amber);color:#fff;}
 
     /* map overlay: loading / empty */
     .moverlay{
@@ -354,6 +360,8 @@
   <div class="dbadge" id="dbadge"></div>
   <button class="mvbtn expbtn" id="expbtn" onclick="exportGpx()" title="Als GPX teilen">&#x2913; GPX</button>
   <button class="mvbtn" id="mvbtn" onclick="toggleMonthView()">&#x25F1; Monat</button>
+  <button class="mvbtn lyrbtn" id="lyrbtn" onclick="toggleLayerMenu()" title="Kartenebene">&#x25A4; Karte</button>
+  <div class="lyrmenu" id="lyrmenu"></div>
   <div id="movl" class="moverlay">
     <div class="oico">&#x1F5FA;&#xFE0F;</div>
     <div class="otxt">Tag ausw&#xE4;hlen</div>
@@ -473,6 +481,7 @@
   };
 
   let map=null, ac=null;
+  let baseLayers={}, curBase=null;
   let curRoute=null;   // aktuell angezeigte Route für den GPX-Export: {kind:'day'|'month', …}
 
   /* ─── SHEET STATE ─── */
@@ -523,6 +532,7 @@
   window.addEventListener('load', ()=>{
     document.getElementById('map').addEventListener('click', ()=>{
       if(sheetState !== 'peek') sheetPeek();
+      closeLayerMenu();
     });
   });
 
@@ -564,16 +574,28 @@
       attribution: '\u00a9 Esri, Maxar, Earthstar Geographics', maxZoom: 19
     });
 
-    voyager.addTo(map);   // ruhiger, freundlicher Default
-
-    L.control.layers({
-      "Karte": voyager,
-      "Hell": positron,
-      "Dunkel": dark,
-      "Topo (Wandern)": topo,
-      "Satellit": sat
-    }, {}, {position:'topright', collapsed:true}).addTo(map);
+    baseLayers = {"Karte":voyager, "Hell":positron, "Dunkel":dark, "Topo (Wandern)":topo, "Satellit":sat};
+    setBase('Karte');   // eigener Umschalter (Leaflet-Control ist im WebView touch-zickig)
+    buildLayerMenu();
   }
+  function setBase(name){
+    const l=baseLayers[name]; if(!l||!map) return;
+    Object.values(baseLayers).forEach(x=>{ if(map.hasLayer(x)) map.removeLayer(x); });
+    l.addTo(map); if(l.bringToBack) l.bringToBack();
+    curBase=name;
+    const b=document.getElementById('lyrbtn'); if(b) b.textContent='\u25A4 '+name.split(' ')[0];
+    buildLayerMenu();
+  }
+  function buildLayerMenu(){
+    const m=document.getElementById('lyrmenu'); if(!m) return; m.innerHTML='';
+    Object.keys(baseLayers).forEach(name=>{
+      const it=document.createElement('div'); it.className='lyritem'+(name===curBase?' sel':'');
+      it.textContent=name; it.onclick=()=>{ setBase(name); closeLayerMenu(); };
+      m.appendChild(it);
+    });
+  }
+  function toggleLayerMenu(){ const m=document.getElementById('lyrmenu'); if(m) m.classList.toggle('on'); }
+  function closeLayerMenu(){ const m=document.getElementById('lyrmenu'); if(m) m.classList.remove('on'); }
 
   /* ─── SETUP ─── */
   function openSetup(){ document.getElementById('soverlay').classList.remove('gone'); }
