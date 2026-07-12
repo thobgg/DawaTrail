@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>DawaTrail</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -16,7 +16,7 @@
       --r:10px;
       --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
       --mono:'Courier New',monospace;
-      --hdr:62px;
+      --hdr:60px;
       --sidebar:290px;
       --peek:86px;
     }
@@ -37,7 +37,7 @@
     ════════════════════════════════════ */
     .hdr{
       position:fixed;inset:0 0 auto 0;
-      height:var(--hdr);
+      height:calc(var(--hdr) + env(safe-area-inset-top));
       z-index:200;
       display:flex;align-items:center;gap:10px;
       padding:0 14px;
@@ -78,7 +78,7 @@
     ════════════════════════════════════ */
     .mapwrap{
       position:fixed;
-      top:var(--hdr);
+      top:calc(var(--hdr) + env(safe-area-inset-top));
       bottom:0;
       left:0;right:0;
       z-index:0;
@@ -113,6 +113,12 @@
     }
     .mvbtn.on{background:var(--amber);border-color:var(--amber);color:#fff;}
     .expbtn{top:110px;}
+    .lyrbtn{top:10px;}
+    .lyrmenu{position:absolute;top:10px;right:118px;z-index:50;background:rgba(10,10,10,0.92);border:1px solid var(--b2);border-radius:8px;padding:4px;display:none;flex-direction:column;gap:2px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+    .lyrmenu.on{display:flex;}
+    .lyritem{padding:8px 12px;border-radius:6px;font-size:13px;color:var(--tx);white-space:nowrap;cursor:pointer;}
+    .lyritem:hover,.lyritem:active{background:var(--surface2);}
+    .lyritem.sel{background:var(--amber);color:#fff;}
 
     /* map overlay: loading / empty */
     .moverlay{
@@ -156,13 +162,13 @@
     .ssep{width:1px;background:var(--b1);margin:2px 0;}
 
     /* calendar */
-    .calwrap{padding:4px 10px 8px;}
+    .calwrap{padding:10px 12px 12px;margin:4px 12px 12px;background:var(--surface2);border:1px solid var(--b1);border-radius:18px;}
     .calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
     .dhdr{text-align:center;font-size:9px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.4px;padding:2px 0 5px;}
-    .cday{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:6px;position:relative;cursor:pointer;transition:background .1s;}
+    .cday{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:50%;position:relative;cursor:pointer;transition:background .12s,box-shadow .12s;}
     .cday:hover,.cday:active{background:var(--surface2);}
     .cday.oth{opacity:.15;pointer-events:none;}
-    .cday.tod{outline:1px solid var(--blue);outline-offset:-1px;}
+    .cday.tod{box-shadow:inset 0 0 0 1.5px var(--blue);}
     .cday.tod .dn{color:#4f8ef7;font-weight:700;}
     .cday.act{background:var(--amber);}
     .cday.act .dn{color:#fff;font-weight:700;}
@@ -170,12 +176,12 @@
     .cday.act::after{background:rgba(255,255,255,.7);}
     .cday.nd{pointer-events:none;}
     .cday.nd .dn{text-decoration:line-through;color:var(--tx3);}
-    .dn{font-size:11px;color:var(--tx);}
+    .dn{font-size:12px;font-weight:500;color:var(--tx);}
 
     /* picker */
     .picker{overflow:hidden;max-height:0;transition:max-height .25s ease;background:var(--bg);border-top:1px solid var(--b1);}
     .picker.open{max-height:165px;}
-    .ychips{display:flex;gap:6px;padding:8px 10px 4px;overf15659d6d34922b81b96a1228be862a01low-x:auto;scrollbar-width:none;cursor:grab;}
+    .ychips{display:flex;gap:6px;padding:8px 10px 4px;overflow-x:auto;touch-action:pan-x;-webkit-overflow-scrolling:touch;scrollbar-width:none;cursor:grab;}
     .ychips::-webkit-scrollbar{display:none;}
     .ychip{flex-shrink:0;padding:5px 13px;border-radius:16px;background:var(--surface2);border:1px solid var(--b2);color:var(--tx2);font-size:13px;font-weight:500;cursor:pointer;}
     .ychip.sel{background:var(--amber);border-color:var(--amber);color:#fff;}
@@ -197,7 +203,7 @@
       .sheet{display:none !important;}
       .sidebar{
         position:fixed;
-        top:var(--hdr);bottom:0;left:0;
+        top:calc(var(--hdr) + env(safe-area-inset-top));bottom:0;left:0;
         width:var(--sidebar);
         z-index:100;
         background:var(--surface);
@@ -231,7 +237,7 @@
         z-index:100;
         /* three snap points via CSS scroll snap on a wrapper */
         background:var(--surface);
-        border-radius:20px 20px 0 0;
+        border-radius:24px 24px 0 0;
         border-top:1px solid var(--b2);
         will-change:transform;
         transition:transform .32s cubic-bezier(.32,.72,0,1);
@@ -242,10 +248,10 @@
       .sheet.s-full{transform:translateY(calc(100% - 92dvh));}
 
       .handle{
-        width:36px;height:4px;
-        background:var(--b3);border-radius:2px;
-        margin:10px auto 0;cursor:grab;
-        flex-shrink:0;
+        width:46px;height:5px;box-sizing:content-box;
+        padding:11px 24px;margin:0 auto;
+        background:var(--b3);background-clip:content-box;
+        border-radius:3px;cursor:grab;flex-shrink:0;
       }
 
       /* calendar area collapsible */
@@ -354,6 +360,8 @@
   <div class="dbadge" id="dbadge"></div>
   <button class="mvbtn expbtn" id="expbtn" onclick="exportGpx()" title="Als GPX teilen">&#x2913; GPX</button>
   <button class="mvbtn" id="mvbtn" onclick="toggleMonthView()">&#x25F1; Monat</button>
+  <button class="mvbtn lyrbtn" id="lyrbtn" onclick="toggleLayerMenu()" title="Kartenebene">&#x25A4; Karte</button>
+  <div class="lyrmenu" id="lyrmenu"></div>
   <div id="movl" class="moverlay">
     <div class="oico">&#x1F5FA;&#xFE0F;</div>
     <div class="otxt">Tag ausw&#xE4;hlen</div>
@@ -473,6 +481,7 @@
   };
 
   let map=null, ac=null;
+  let baseLayers={}, curBase=null;
   let curRoute=null;   // aktuell angezeigte Route für den GPX-Export: {kind:'day'|'month', …}
 
   /* ─── SHEET STATE ─── */
@@ -507,8 +516,14 @@
       document.getElementById('sheet').style.transition='';
       const y1 = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
       const dy = y1 - y0, dt = Date.now()-t0, v = Math.abs(dy)/Math.max(dt,1);
-      if      (dy < -24 || v > .45) { if(sheetState==='peek') sheetHalf(); else sheetFull(); }
-      else if (dy >  24 || v > .45) { if(sheetState==='full') sheetHalf(); else sheetPeek(); }
+      if (Math.abs(dy) < 10 && dt < 250) {   // Tap → nächste Stufe: peek→half→full→peek
+        if(sheetState==='peek') sheetHalf();
+        else if(sheetState==='half') sheetFull();
+        else sheetPeek();
+        return;
+      }
+      if      (dy < -24) { if(sheetState==='peek') sheetHalf(); else sheetFull(); }
+      else if (dy >  24) { if(sheetState==='full') sheetHalf(); else sheetPeek(); }
     };
 
     window.addEventListener('load', ()=>{
@@ -523,6 +538,7 @@
   window.addEventListener('load', ()=>{
     document.getElementById('map').addEventListener('click', ()=>{
       if(sheetState !== 'peek') sheetPeek();
+      closeLayerMenu();
     });
   });
 
@@ -546,29 +562,46 @@
   function initMap(){
     map = L.map('map',{zoomControl:true,preferCanvas:true}).setView([51.5,10],6);
 
-    // Alle Ebenen keyless — kein API-Key, kein Fremd-Account nötig.
+    // Alle Ebenen keyless. CartoDB = ruhige Basemaps, damit Marker/Tracks knallen.
+    const cartoAttr = '\u00a9 OpenStreetMap \u00a9 CARTO';
+    const voyager = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      attribution: cartoAttr, maxZoom: 20
+    });
+    const positron = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      attribution: cartoAttr, maxZoom: 20
+    });
+    const dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: cartoAttr, maxZoom: 20
+    });
     const topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
       attribution: '\u00a9 OpenTopoMap (CC-BY-SA) \u00a9 OpenStreetMap', maxZoom: 17
-    });
-    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '\u00a9 OpenStreetMap', maxZoom: 19
     });
     const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       attribution: '\u00a9 Esri, Maxar, Earthstar Geographics', maxZoom: 19
     });
-    const dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '\u00a9 OpenStreetMap \u00a9 CartoDB', maxZoom: 19
-    });
 
-    topo.addTo(map);   // Topo/Wanderwege als Standard (Trail-App)
-
-    L.control.layers({
-      "Topo": topo,
-      "OpenStreetMap": osm,
-      "Satellit": sat,
-      "Dark Mode": dark
-    }, {}, {position:'topright', collapsed:true}).addTo(map);
+    baseLayers = {"Karte":voyager, "Hell":positron, "Dunkel":dark, "Topo (Wandern)":topo, "Satellit":sat};
+    setBase('Karte');   // eigener Umschalter (Leaflet-Control ist im WebView touch-zickig)
+    buildLayerMenu();
   }
+  function setBase(name){
+    const l=baseLayers[name]; if(!l||!map) return;
+    Object.values(baseLayers).forEach(x=>{ if(map.hasLayer(x)) map.removeLayer(x); });
+    l.addTo(map); if(l.bringToBack) l.bringToBack();
+    curBase=name;
+    const b=document.getElementById('lyrbtn'); if(b) b.textContent='\u25A4 '+name.split(' ')[0];
+    buildLayerMenu();
+  }
+  function buildLayerMenu(){
+    const m=document.getElementById('lyrmenu'); if(!m) return; m.innerHTML='';
+    Object.keys(baseLayers).forEach(name=>{
+      const it=document.createElement('div'); it.className='lyritem'+(name===curBase?' sel':'');
+      it.textContent=name; it.onclick=()=>{ setBase(name); closeLayerMenu(); };
+      m.appendChild(it);
+    });
+  }
+  function toggleLayerMenu(){ const m=document.getElementById('lyrmenu'); if(m) m.classList.toggle('on'); }
+  function closeLayerMenu(){ const m=document.getElementById('lyrmenu'); if(m) m.classList.remove('on'); }
 
   /* ─── SETUP ─── */
   function openSetup(){ document.getElementById('soverlay').classList.remove('gone'); }
@@ -583,8 +616,8 @@
     const btn=document.getElementById('cbtn');
     if(btn){ btn.textContent='Verbinde\u2026'; btn.disabled=true; }
     try{
-      const r = await fetch(S.url+'/api/v1/health?api_key='+S.key);
-      if(!r.ok) throw new Error('HTTP '+r.status);
+      const r = await netCall(S.url+'/api/v1/health?api_key='+encodeURIComponent(S.key));
+      if(r.status!==200) throw new Error('HTTP '+(r.status||r.error||'?'));
       S.ok=true; setStat(true); save(); closeSetup();
       if(!silent) toast('\u2713 Verbunden');
       loadMonth();
@@ -793,23 +826,33 @@
   }
 
   /* ─── API ─── */
+  /* ─── native GET-Brücke (Dawarich, wegen abgeschalteter file://-Cross-Origin) ─── */
+  let _netCbs={}, _netN=0;
+  window.__netCb=(id,json)=>{ const cb=_netCbs[id]; if(cb){ delete _netCbs[id]; try{cb(JSON.parse(json));}catch(_){cb({error:'parse'});} } };
+  function netCall(url){
+    return new Promise((resolve,reject)=>{
+      if(!window.AndroidNet){ reject(new Error('native Bruecke fehlt')); return; }
+      const id='n'+(_netN++); _netCbs[id]=resolve;
+      try{ AndroidNet.get(url, id); }catch(e){ delete _netCbs[id]; reject(e); }
+    });
+  }
   async function api(ds,pp,sig){
     const p=pp||2000;
     const s=Math.floor(new Date(ds+'T00:00:00').getTime()/1000);
     const e=Math.floor(new Date(ds+'T23:59:59').getTime()/1000);
     const u=S.url+'/api/v1/points?'+
       new URLSearchParams({start_at:s,end_at:e,api_key:S.key,order:'asc',slim:'true',per_page:p});
-    const r=await fetch(u,sig?{signal:sig}:{});
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    return r.json();
+    const r=await netCall(u);
+    if(r.status!==200) throw new Error('HTTP '+(r.status||r.error||'?'));
+    return JSON.parse(r.body);
   }
   // Punkte über einen frei wählbaren Zeitraum, seitenweise (für Monats-Übersicht).
   async function apiRange(startTs,endTs,per,page,sig){
     const u=S.url+'/api/v1/points?'+
       new URLSearchParams({start_at:startTs,end_at:endTs,api_key:S.key,order:'asc',slim:'true',per_page:per,page});
-    const r=await fetch(u,sig?{signal:sig}:{});
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    return r.json();
+    const r=await netCall(u);
+    if(r.status!==200) throw new Error('HTTP '+(r.status||r.error||'?'));
+    return JSON.parse(r.body);
   }
 
   /* ─── MAP HELPERS ─── */
@@ -823,9 +866,9 @@
       className:'',iconAnchor:[6,6]
     });
     L.marker(ll[0],{icon:dot('#43c98c')})
-      .bindPopup('<b>Start</b> \u00b7 '+ft(pts[0].timestamp)).addTo(map);
+      .bindPopup('<b>Start</b> \u00b7 '+gpxEsc(ft(pts[0].timestamp))).addTo(map);
     L.marker(ll[ll.length-1],{icon:dot('#f05a5a')})
-      .bindPopup('<b>Ende</b> \u00b7 '+ft(pts[pts.length-1].timestamp)).addTo(map);
+      .bindPopup('<b>Ende</b> \u00b7 '+gpxEsc(ft(pts[pts.length-1].timestamp))).addTo(map);
     map.fitBounds(poly.getBounds(),{padding:[50,30]});
   }
   function clearMap(){
