@@ -616,8 +616,8 @@
     const btn=document.getElementById('cbtn');
     if(btn){ btn.textContent='Verbinde\u2026'; btn.disabled=true; }
     try{
-      const r = await fetch(S.url+'/api/v1/health?api_key='+S.key);
-      if(!r.ok) throw new Error('HTTP '+r.status);
+      const r = await netCall(S.url+'/api/v1/health?api_key='+encodeURIComponent(S.key));
+      if(r.status!==200) throw new Error('HTTP '+(r.status||r.error||'?'));
       S.ok=true; setStat(true); save(); closeSetup();
       if(!silent) toast('\u2713 Verbunden');
       loadMonth();
@@ -826,23 +826,33 @@
   }
 
   /* ─── API ─── */
+  /* ─── native GET-Brücke (Dawarich, wegen abgeschalteter file://-Cross-Origin) ─── */
+  let _netCbs={}, _netN=0;
+  window.__netCb=(id,json)=>{ const cb=_netCbs[id]; if(cb){ delete _netCbs[id]; try{cb(JSON.parse(json));}catch(_){cb({error:'parse'});} } };
+  function netCall(url){
+    return new Promise((resolve,reject)=>{
+      if(!window.AndroidNet){ reject(new Error('native Bruecke fehlt')); return; }
+      const id='n'+(_netN++); _netCbs[id]=resolve;
+      try{ AndroidNet.get(url, id); }catch(e){ delete _netCbs[id]; reject(e); }
+    });
+  }
   async function api(ds,pp,sig){
     const p=pp||2000;
     const s=Math.floor(new Date(ds+'T00:00:00').getTime()/1000);
     const e=Math.floor(new Date(ds+'T23:59:59').getTime()/1000);
     const u=S.url+'/api/v1/points?'+
       new URLSearchParams({start_at:s,end_at:e,api_key:S.key,order:'asc',slim:'true',per_page:p});
-    const r=await fetch(u,sig?{signal:sig}:{});
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    return r.json();
+    const r=await netCall(u);
+    if(r.status!==200) throw new Error('HTTP '+(r.status||r.error||'?'));
+    return JSON.parse(r.body);
   }
   // Punkte über einen frei wählbaren Zeitraum, seitenweise (für Monats-Übersicht).
   async function apiRange(startTs,endTs,per,page,sig){
     const u=S.url+'/api/v1/points?'+
       new URLSearchParams({start_at:startTs,end_at:endTs,api_key:S.key,order:'asc',slim:'true',per_page:per,page});
-    const r=await fetch(u,sig?{signal:sig}:{});
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    return r.json();
+    const r=await netCall(u);
+    if(r.status!==200) throw new Error('HTTP '+(r.status||r.error||'?'));
+    return JSON.parse(r.body);
   }
 
   /* ─── MAP HELPERS ─── */
@@ -856,9 +866,9 @@
       className:'',iconAnchor:[6,6]
     });
     L.marker(ll[0],{icon:dot('#43c98c')})
-      .bindPopup('<b>Start</b> \u00b7 '+ft(pts[0].timestamp)).addTo(map);
+      .bindPopup('<b>Start</b> \u00b7 '+gpxEsc(ft(pts[0].timestamp))).addTo(map);
     L.marker(ll[ll.length-1],{icon:dot('#f05a5a')})
-      .bindPopup('<b>Ende</b> \u00b7 '+ft(pts[pts.length-1].timestamp)).addTo(map);
+      .bindPopup('<b>Ende</b> \u00b7 '+gpxEsc(ft(pts[pts.length-1].timestamp))).addTo(map);
     map.fitBounds(poly.getBounds(),{padding:[50,30]});
   }
   function clearMap(){

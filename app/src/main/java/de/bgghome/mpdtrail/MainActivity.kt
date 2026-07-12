@@ -50,8 +50,8 @@ class MainActivity : AppCompatActivity() {
             builtInZoomControls              = false
             displayZoomControls              = false
             setSupportZoom(false)
-            allowFileAccessFromFileURLs      = true  // Zugriff auf lokale Assets
-            allowUniversalAccessFromFileURLs = true  // fetch() zu externen HTTPS-URLs
+            allowFileAccessFromFileURLs      = false // Sicherheit: file://-Seite darf NICHT cross-origin
+            allowUniversalAccessFromFileURLs = false // Dawarich-Calls laufen über die native Brücke (AndroidNet)
             mixedContentMode                 = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             cacheMode                        = WebSettings.LOAD_DEFAULT
         }
@@ -74,6 +74,10 @@ class MainActivity : AppCompatActivity() {
         // sie in den Cache und öffnet den System-Teilen-Dialog. Eigener Name
         // (nicht "AndroidBridge"), damit das JS-Back-Objekt nicht überschrieben wird.
         webView.addJavascriptInterface(ShareBridge(), "AndroidShare")
+
+        // Native HTTP-GET-Brücke: da die file://-Seite kein Cross-Origin mehr darf,
+        // holt Android die Dawarich-Daten (Same-Origin-Policy bleibt scharf).
+        webView.addJavascriptInterface(NetBridge(), "AndroidNet")
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -125,6 +129,43 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun shareGpx(filename: String, xml: String) {
             runOnUiThread { shareGpxFile(filename, xml) }
+        }
+    }
+
+    // ─── Native HTTP-GET (Dawarich) ────────────────────────────────────
+    /** Ergebnis async ins JS zurückgeben: window.__netCb(cbId, jsonString). */
+    private fun postToJs(cbId: String, json: String) {
+        val quoted = org.json.JSONObject.quote(json)
+        runOnUiThread {
+            webView.evaluateJavascript("window.__netCb && window.__netCb('$cbId', $quoted)", null)
+        }
+    }
+
+    private fun httpGet(url: String): Pair<Int, String> {
+        val c = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+        c.requestMethod = "GET"
+        c.connectTimeout = 15000; c.readTimeout = 20000
+        val code = c.responseCode
+        val stream = if (code in 200..299) c.inputStream else (c.errorStream ?: c.inputStream)
+        val text = stream?.bufferedReader()?.use { it.readText() } ?: ""
+        c.disconnect()
+        return code to text
+    }
+
+    /** JS-Brücke: GET auf eine volle URL, Netzwerk im Hintergrund-Thread. */
+    inner class NetBridge {
+        @JavascriptInterface
+        fun get(url: String, cbId: String) {
+            Thread {
+                val out = org.json.JSONObject()
+                try {
+                    val r = httpGet(url)
+                    out.put("status", r.first); out.put("body", r.second)
+                } catch (e: Exception) {
+                    out.put("error", e.message ?: "error")
+                }
+                postToJs(cbId, out.toString())
+            }.start()
         }
     }
 }
