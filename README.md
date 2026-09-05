@@ -1,5 +1,10 @@
 # DawaTrail
 
+> **Status: archived (September 2026), unmaintained.**
+> I no longer use Dawarich, so this viewer is no longer developed or
+> supported. Last tested against Dawarich's `/api/v1/points` in July 2026.
+> MIT-licensed — fork it and do what you like with it.
+
 *da war ich.* — a lightweight Android viewer for your [Dawarich](https://github.com/Freika/dawarich) GPS history: browse your days on a calendar, see each day's track on a map, and export tracks as GPX.
 
 > **Unofficial project.** DawaTrail is an independent, third‑party viewer. It is **not affiliated with, endorsed by, or supported by the Dawarich project**. Dawarich is a separate project by its own authors; DawaTrail only talks to Dawarich's public HTTP API and contains no Dawarich code. The name is a friendly homage — Dawarich itself puns on the German *„da war ich"* (“that's where I was”), and DawaTrail simply draws the trail of where you were.
